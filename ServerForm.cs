@@ -13,7 +13,7 @@ namespace DiceGame
     {
 
         private RichTextBox Cnsl;
-        private Client Client;
+        private Client LocalClient;
 
         Thread LobbyThread;
 
@@ -21,7 +21,7 @@ namespace DiceGame
 
         public ServerForm(string adress, int receivePort, int sendPort) : base()
         {
-            Client = new Client(adress, receivePort);
+            LocalClient = new Client(adress, receivePort);
             Rooms = new List<Room>();
 
             LobbyThread = new Thread(new ParameterizedThreadStart((object obj) =>
@@ -39,12 +39,12 @@ namespace DiceGame
             { Name = "ServerThread", IsBackground = true };
             LobbyThread.Start();
 
-            Client.StartReceive("ServerReceiver");
+            LocalClient.StartReceive("ServerReceiver");
 
 
             Thread ProcessThread = new Thread(new ParameterizedThreadStart((object obj) =>
             {
-                Client.Receive += (frame) =>
+                LocalClient.Receive += (frame) =>
                 {
                     if (InvokeRequired) Invoke(new Action<Frame>((s) => ProcessMessage(frame)), frame);
                 };
@@ -54,6 +54,12 @@ namespace DiceGame
 
 
             Show();
+        }
+
+        public new void Close()
+        {
+            LocalClient.StopReceive();
+            base.Close();
         }
 
         public void ProcessMessage(Frame frame)

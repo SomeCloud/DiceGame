@@ -46,6 +46,9 @@
     <Reference Include="System.Xml" />
   </ItemGroup>
   <ItemGroup>
+    <Compile Include="ClientForm.cs">
+      <SubType>Form</SubType>
+    </Compile>
     <Compile Include="EList.cs" />
     <Compile Include="Client.cs" />
     <Compile Include="GameNoteView.cs">
