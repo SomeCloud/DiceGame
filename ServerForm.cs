@@ -12,6 +12,9 @@ namespace DiceGame
     class ServerForm: Form
     {
 
+        private delegate void OnMoveEvent(Room room);
+        private event OnMoveEvent MoveEvent;
+
         private RichTextBox Cnsl;
         private Client LocalClient;
 
@@ -26,14 +29,19 @@ namespace DiceGame
 
             LobbyThread = new Thread(new ParameterizedThreadStart((object obj) =>
             {
+                Server LobbyServer;
+                MoveEvent += (room) => {
+                    LobbyServer = new Server(adress, sendPort);
+                    LobbyServer.SendFrame(new Frame(room.Id, room.ToEasyRoom(), MessageType.Exchange, GameMessageType.Send));
+                };
                 while (true)
                 {
                     for (int i = 0; i < Rooms.Count; i++)
                     {
-                        Server LobbyServer = new Server(adress, sendPort);
+                        LobbyServer = new Server(adress, sendPort);
                         LobbyServer.SendFrame(new Frame(Rooms[i].Id, Rooms[i].ToEasyRoom(), MessageType.Exchange, GameMessageType.Send));
                     }
-                    Thread.Sleep(360);
+                    Thread.Sleep(3000);
                 }
             }))
             { Name = "ServerThread", IsBackground = true };
@@ -83,14 +91,17 @@ namespace DiceGame
                             }
                             break;
                         case GameMessageType.Connect:
-                            if (IsContaninsRoom(frame.RoomId, out Room) == false)
+                            if (IsContaninsRoom(frame.RoomId, out Room) == true)
                             {
-                                Room.AddPlayer((string)frame.Data);
-                                Cnsl.AppendText("[" + Room.Name + "]: подключился игрок " + (string)frame.Data + "\n");
+                                if (Room.AddPlayer((string)frame.Data))
+                                {
+                                    Cnsl.AppendText("[" + Room.Name + "]: подключился игрок " + (string)frame.Data + "\n");
+                                    MoveEvent?.Invoke(Room);
+                                }
                             }
                             break;
                         case GameMessageType.Send:
-                            if (IsContaninsRoom(frame.RoomId, out Room) == false)
+                            if (IsContaninsRoom(frame.RoomId, out Room) == true)
                             {
                                 int move = new Random(Convert.ToInt32((int)DateTime.Now.Ticks)).Next(1, 7);
                                 if (move == 1)
@@ -98,11 +109,15 @@ namespace DiceGame
                                     Cnsl.AppendText("[" + Room.Name + "]: игрок " + Room.ActivePlayer.Name + "сделал ход и ему выпало 1. Ход переходит к следующему игроку\n");
                                     Room.ActivePlayer.LastRound.Add(move);
                                     Room.NextPlayer();
+                                    Room.ActivePlayer.LastRound.Clear();
                                 }
                                 else
                                 {
                                     if (Room.ActivePlayer.Score + Room.ActivePlayer.LastRound.Sum() + move >= 100)
                                     {
+                                        Room.ActivePlayer.LastRound.Add(move);
+                                        Room.ActivePlayer.Rounds.Add(Room.ActivePlayer.LastRound.Sum());
+                                        Room.ActivePlayer.LastRound.Clear();
                                         Cnsl.AppendText("[" + Room.Name + "]: игрок " + Room.ActivePlayer.Name + "сделал ход " + move + ", и победил в игре со счетом " + Room.ActivePlayer.Score + Room.ActivePlayer.LastRound.Sum() + move + "\n");
                                         Room.Status = GameStatus.Over;
                                     }
@@ -112,13 +127,19 @@ namespace DiceGame
                                         Room.ActivePlayer.LastRound.Add(move);
                                     }
                                 }
+                                MoveEvent?.Invoke(Room);
                             }
                             break;
                         case GameMessageType.Wait:
-                            if (IsContaninsRoom(frame.RoomId, out Room) == false)
+                            if (IsContaninsRoom(frame.RoomId, out Room) == true)
                             {
-                                Room.ActivePlayer.Rounds.Add(Room.ActivePlayer.LastRound.Sum());
-                                Room.NextPlayer();
+                                if (Room.ActivePlayer.Name == frame.Data.ToString())
+                                {
+                                    Room.ActivePlayer.Rounds.Add(Room.ActivePlayer.LastRound.Sum());
+                                    Room.NextPlayer();
+                                    Room.ActivePlayer.LastRound.Clear();
+                                    MoveEvent?.Invoke(Room);
+                                }
                             }
                             break;
                     }
@@ -136,6 +157,7 @@ namespace DiceGame
                         {
                             Cnsl.AppendText("[" + Room.Name + "]: игрок " + (string)frame.Data + " покидает игру\n");
                             Room.RemovePlayer((string)frame.Data);
+                            MoveEvent?.Invoke(Room);
                         }
                     }
                     break;

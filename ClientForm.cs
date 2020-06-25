@@ -66,6 +66,7 @@ namespace DiceGame
                                     InitGameRoom(Room);
                                     break;
                                 case GameStatus.Over:
+                                    InitGameOverRoom(Room);
                                     break;
                                 case GameStatus.Close:
                                     break;
@@ -92,24 +93,54 @@ namespace DiceGame
             ClientSize = new Size(800, 600);
             Text = "Dice Game. Main";
 
+            Watcher = false;
+
             Button StartServer = new Button() { Parent = this, Location = new Point(ClientRectangle.Width - 260, 10), Size = new Size(250, 40), Text = "Запустить сервер" };
             Button StartRoom = new Button() { Parent = this, Location = new Point(10, 10), Size = new Size(250, 40), Text = "Создать комнату" };
 
             NotesView Lobbys = new NotesView(Notes) { Parent = this, Location = new Point(10, 60), Height = 530 };
 
             Lobbys.ConnectEvent += (note, room) => {
-                InLobby = false;
-                RoomId = room.Id;
+                InitConnectToRoomForm(room);
             };
 
             Lobbys.WatchEvent += (note, room) => {
                 InLobby = false;
-                Watcher = true;
                 RoomId = room.Id;
+                Watcher = true;
+                Name = "Watcher";
             };
 
             StartRoom.Click += (object sender, EventArgs e) => {
                 InitCreateRoomForm();
+            };
+
+        }
+
+        public void InitConnectToRoomForm(EasyRoom room)
+        {
+            Controls.Clear();
+            ClientSize = new Size(800, 600);
+            Text = "Dice Game. Waiting room";
+
+            Label RoomTitle = new Label() { Parent = this, Location = new Point(ClientSize.Width / 2 - 250, ClientSize.Height / 2 - 195), Size = new Size(500, 40), Font = new Font(Font.FontFamily, 24), Text = room.Name };
+            Label PlayerNameInputLabel = new Label() { Parent = this, Location = new Point(ClientSize.Width / 2 - 250, ClientSize.Height / 2 + 55), Size = new Size(500, 40), Font = new Font(Font.FontFamily, 12), Text = "Введетие ваш ник" };
+            TextBox PlayerNameInput = new TextBox() { Parent = this, Location = new Point(ClientSize.Width / 2 - 250, ClientSize.Height / 2 + 105), Size = new Size(500, 40), Font = new Font(Font.FontFamily, 12) };
+
+            Button Done = new Button() { Parent = this, Location = new Point(ClientSize.Width / 2 - 250, ClientSize.Height / 2 + 155), Size = new Size(200, 40), Font = new Font(Font.FontFamily, 12), Text = "Готово" };
+            Button Back = new Button() { Parent = this, Location = new Point(ClientSize.Width / 2 + 50, ClientSize.Height / 2 + 155), Size = new Size(200, 40), Font = new Font(Font.FontFamily, 12), Text = "Вернуться в лобби" };
+
+            Done.Click += (object sender, EventArgs e) => {
+                Name = PlayerNameInput.Text;
+                LocalServer.SendFrame(new Frame(room.Id, Name, MessageType.Exchange, GameMessageType.Connect));
+                RoomId = room.Id;
+                InLobby = false;
+            };
+
+            Back.Click += (object sender, EventArgs e) => {
+                InLobby = true;
+                RoomId = -1;
+                InitMain();
             };
 
         }
@@ -126,7 +157,7 @@ namespace DiceGame
             TextBox RoomNameInput = new TextBox() { Parent = this, Location = new Point(ClientSize.Width / 2 - 250, ClientSize.Height / 2 - 95), Size = new Size(500, 40), Font = new Font(Font.FontFamily, 12) };
 
             Label PlayersCountInputLabel = new Label() { Parent = this, Location = new Point(ClientSize.Width / 2 - 250, ClientSize.Height / 2 - 45), Size = new Size(500, 40), Font = new Font(Font.FontFamily, 12), Text = "Количество игроков в игре: 2" };
-            TrackBar PlayersCountInput = new TrackBar() { Parent = this, Location = new Point(ClientSize.Width / 2 - 250, ClientSize.Height / 2 + 5), Size = new Size(500, 40), Minimum = 1, Maximum = 5 };
+            TrackBar PlayersCountInput = new TrackBar() { Parent = this, Location = new Point(ClientSize.Width / 2 - 250, ClientSize.Height / 2 + 5), Size = new Size(500, 40), Minimum = 2, Maximum = 5 };
 
             Label PlayerNameInputLabel = new Label() { Parent = this, Location = new Point(ClientSize.Width / 2 - 250, ClientSize.Height / 2 + 55), Size = new Size(500, 40), Font = new Font(Font.FontFamily, 12), Text = "Введетие ваш ник" };
             TextBox PlayerNameInput = new TextBox() { Parent = this, Location = new Point(ClientSize.Width / 2 - 250, ClientSize.Height / 2 + 105), Size = new Size(500, 40), Font = new Font(Font.FontFamily, 12) };
@@ -175,14 +206,27 @@ namespace DiceGame
         {
             Controls.Clear();
             ClientSize = new Size(800, 600);
-            Text = "Dice Game. " + room.Name + "Game";
+            Text = "Dice Game. " + room.Name + " - Game";
+
+            GameView gameView = new GameView(room, Name, Watcher) { Parent = this, Location = new Point(10, 10), Height = 400 };
+
+            gameView.ClickRoll += () =>
+            {
+                LocalServer.SendFrame(new Frame(room.Id, Name, MessageType.Exchange, GameMessageType.Send));
+            };
+
+            gameView.ClickStop += () =>
+            {
+                LocalServer.SendFrame(new Frame(room.Id, Name, MessageType.Exchange, GameMessageType.Wait));
+            };
+
         }
 
         public void InitGameOverRoom(EasyRoom room)
         {
             Controls.Clear();
             ClientSize = new Size(800, 600);
-            Text = "Dice Game. " + room.Name + "Game over";
+            Text = "Dice Game. " + room.Name + " - Game over";
 
             int k = 0;
             List<EasyPlayer> players = room.Players.OrderByDescending(u => u.Score).ToList();

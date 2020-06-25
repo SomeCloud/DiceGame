@@ -44,14 +44,38 @@ namespace DiceGame
             return new EasyRoom(Id, Name, MaxPlayerCount, players, ActivePlayer.Name, Status);
         }
 
-        public void AddPlayer(string name)
+        public bool AddPlayer(string name)
         {
-            Player player = new Player(name);
-            if (Players.Count == 0)
+            Player player;
+            if (IsPlayerContains(name, out player) == false)
             {
-                ActivePlayer = player;
+                player = new Player(name);
+                if (Players.Count == 0)
+                {
+                    ActivePlayer = player;
+                }
+                if (Players.Count == MaxPlayerCount - 1)
+                {
+                    Status = GameStatus.Game;
+                }
+                Players.Add(player);
+                return true;
             }
-            Players.Add(player);
+            return false;
+        }
+
+        public bool IsPlayerContains(string name, out Player player)
+        {
+            foreach (Player pl in Players)
+            {
+                if (pl.Name == name)
+                {
+                    player = pl;
+                    return true;
+                }
+            }
+            player = null;
+            return false;
         }
 
         public void RemovePlayer(string name)
@@ -153,19 +177,4 @@ namespace DiceGame
             return room;
         }
     }
-
-    /*public class ConnectRequest
-    {
-
-        public int Id;
-        public string Player;
-
-        public ConnectRequest(int id, string player)
-        {
-            Id = id;
-            Player = player;
-        }
-
-    }*/
-
 }
